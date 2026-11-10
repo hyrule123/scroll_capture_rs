@@ -210,17 +210,18 @@ impl ApplicationHandler for App {
                     self.drag_start = Some(self.cursor);
                 }
                 ElementState::Released => {
-                    if let Some((x, y, w, h)) = self.rect() {
-                        if w >= 20 && h >= 20 {
-                            // 화면의 절대 좌표로 변환
-                            self.result = Some(Selection {
-                                x: self.origin.0 + x as i32,
-                                y: self.origin.1 + y as i32,
-                                width: w,
-                                height: h,
-                            });
-                            event_loop.exit();
-                        }
+                    if let Some((x, y, w, h)) = self.rect()
+                        && w >= 20
+                        && h >= 20
+                    {
+                        // 화면의 절대 좌표로 변환
+                        self.result = Some(Selection {
+                            x: self.origin.0 + x as i32,
+                            y: self.origin.1 + y as i32,
+                            width: w,
+                            height: h,
+                        });
+                        event_loop.exit();
                     }
                     self.drag_start = None;
                 }
