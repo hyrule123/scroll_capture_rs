@@ -75,6 +75,14 @@ impl App {
         }
     }
 
+    /// 창을 즉시 숨기고 이벤트 루프를 끝낸다
+    fn finish(&self, event_loop: &ActiveEventLoop) {
+        if let Some(w) = &self.window {
+            w.set_visible(false);
+        }
+        event_loop.exit();
+    }
+
     /// 화면 그리기
     fn draw(&mut self) -> Result<()> {
         let (w, h) = self.size;
@@ -175,7 +183,7 @@ impl ApplicationHandler for App {
     /// 창에 이벤트(마우스, 키보드, 다시 그리기 요청 등)가 오면 호출됨
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => self.finish(event_loop),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -183,11 +191,11 @@ impl ApplicationHandler for App {
                         ..
                     },
                 ..
-            } => event_loop.exit(),
+            } => self.finish(event_loop),
             WindowEvent::RedrawRequested => {
                 if let Err(e) = self.draw() {
                     eprintln!("그리기 실패: {e}");
-                    event_loop.exit();
+                    self.finish(event_loop);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -221,7 +229,7 @@ impl ApplicationHandler for App {
                             width: w,
                             height: h,
                         });
-                        event_loop.exit();
+                        self.finish(event_loop);
                     }
                     self.drag_start = None;
                 }
@@ -229,7 +237,7 @@ impl ApplicationHandler for App {
             WindowEvent::MouseInput {
                 button: MouseButton::Right,
                 ..
-            } => event_loop.exit(),
+            } => self.finish(event_loop),
             _ => {}
         }
     }

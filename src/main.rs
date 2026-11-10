@@ -1,7 +1,7 @@
 mod analyzer;
 mod overlay;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use xcap::Monitor;
 use xcap::image::RgbaImage;
 
@@ -15,6 +15,7 @@ fn grab(monitor: &Monitor, x: u32, y: u32, w: u32, h: u32) -> Result<RgbaImage> 
 }
 
 fn main() -> Result<()> {
+    // DPI 인식 설정
     let _ = enigo::set_dpi_awareness();
 
     // 주 모니터 찾기
@@ -24,30 +25,18 @@ fn main() -> Result<()> {
         .context("주 모니터를 찾을 수 없습니다")?;
 
     let screenshot = monitor.capture_image()?;
-    overlay::select_region(&screenshot, (monitor.x()?, monitor.y()?))?;
+    if let Some(selection) = overlay::select_region(&screenshot, (monitor.x()?, monitor.y()?))?{
+        std::thread::sleep(std::time::Duration::from_millis(300)); // 오버레이 닫히기 전에 잠시 대기
+        run_capture(selection, 2000)?;
+    }
+
     println!("오버레이 닫힘");
     Ok(())
 }
 
-fn run_capture() -> Result<()> {
-    // 1. DPI 인식 설정
-    // let _: 반환값을 무시한다는 의도
-    let _ = enigo::set_dpi_awareness(); // 다른 무엇보다 먼저
-
-    // 2. 명령줄 인자 유효성 검사 & 파싱
-    // 사용법: scroll_capture_rs.exe <x> <y> <width> <height>
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() != 6 {
-        bail!("사용법: {} <x> <y> <width> <height> <max_height>", args[0]);
-    }
-    let x: i32 = args[1].parse().context("x는 정수여야 합니다")?;
-    let y: i32 = args[2].parse().context("y는 정수여야 합니다")?;
-    let width: u32 = args[3].parse().context("width는 양의 정수여야 합니다")?;
-    let height: u32 = args[4].parse().context("height는 양의 정수여야 합니다")?;
-    let max_height: u32 = args[5]
-        .parse()
-        .context("max_height는 양의 정수여야 합니다")?;
-
+fn run_capture(sel: overlay::Selection, max_height: u32) -> Result<()> {
+    // 1. 인수 출력
+    let (x, y, width, height) = (sel.x, sel.y, sel.width, sel.height);
     println!(
         "캡처 영역: x={}, y={}, width={}, height={}, max_height={}",
         x, y, width, height, max_height
@@ -74,7 +63,7 @@ fn run_capture() -> Result<()> {
     let row_bytes = (width * 4) as usize; // RGBA 이미지 한 행의 바이트 수
 
     loop {
-        enigo.scroll(3, Axis::Vertical)?; // 양수 = 아래로  
+        enigo.scroll(1, Axis::Vertical)?; // 양수 = 아래로  
 
         thread::sleep(Duration::from_millis(500)); // 스크롤 후 잠시 대기
 
