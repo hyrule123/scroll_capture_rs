@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 enigo = "0.6.1"
+softbuffer = "0.4.8"
+winit = "0.30.13"
 xcap = "0.9.10"

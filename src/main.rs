@@ -1,4 +1,5 @@
 mod analyzer;
+mod overlay;
 
 use anyhow::{Context, Result, bail};
 use xcap::Monitor;
@@ -14,6 +15,21 @@ fn grab(monitor: &Monitor, x: u32, y: u32, w: u32, h: u32) -> Result<RgbaImage> 
 }
 
 fn main() -> Result<()> {
+    let _ = enigo::set_dpi_awareness();
+
+    // 주 모니터 찾기
+    let monitor = Monitor::all()?
+        .into_iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .context("주 모니터를 찾을 수 없습니다")?;
+
+    let screenshot = monitor.capture_image()?;
+    overlay::select_region(&screenshot, (monitor.x()?, monitor.y()?))?;
+    println!("오버레이 닫힘");
+    Ok(())
+}
+
+fn run_capture() -> Result<()> {
     // 1. DPI 인식 설정
     // let _: 반환값을 무시한다는 의도
     let _ = enigo::set_dpi_awareness(); // 다른 무엇보다 먼저
@@ -32,7 +48,10 @@ fn main() -> Result<()> {
         .parse()
         .context("max_height는 양의 정수여야 합니다")?;
 
-    println!("캡처 영역: x={}, y={}, width={}, height={}, max_height={}", x, y, width, height, max_height);
+    println!(
+        "캡처 영역: x={}, y={}, width={}, height={}, max_height={}",
+        x, y, width, height, max_height
+    );
 
     // 2-1. 모니터 찾기
     let monitor = Monitor::from_point(x, y).context("해당 좌표에 모니터가 없습니다")?;
