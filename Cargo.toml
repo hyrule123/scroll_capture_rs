@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+arboard = "3.7.0"
+eframe = "0.37.0"
 enigo = "0.6.1"
-softbuffer = "0.4.8"
-winit = "0.30.13"
+rfd = "0.18.0"
 xcap = "0.9.10"
