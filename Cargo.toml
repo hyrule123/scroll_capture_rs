@@ -9,4 +9,5 @@ arboard = "3.7.0"
 eframe = "0.37.0"
 enigo = "0.6.1"
 rfd = "0.18.0"
+windows-sys = { version = "0.61.2", features = ["Win32_UI_Input_KeyboardAndMouse"] }
 xcap = "0.9.10"

@@ -2,7 +2,8 @@
 
 use anyhow::{Context, Result};
 use enigo::{Axis, Coordinate, Enigo, Mouse, Settings};
-use std::{thread, time::Duration};
+use std::thread;
+use std::time::{Duration, Instant};
 use xcap::Monitor;
 use xcap::image::RgbaImage;
 
@@ -38,6 +39,43 @@ impl Default for CaptureOptions {
     }
 }
 
+/// 캡처 결과
+pub struct CaptureOutcome {
+    pub image: RgbaImage,
+    /// 사용자가 Esc나 마우스 클릭으로 중단했는지
+    pub stopped: bool,
+}
+
+/// Esc 또는 마우스 왼쪽/오른쪽 버튼이 지금 눌려 있는지.
+/// 어느 창에 포커스가 있든 상관없이 키보드·마우스의 실제 상태를 읽는다.
+fn stop_requested() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_ESCAPE, VK_LBUTTON, VK_RBUTTON,
+    };
+    [VK_ESCAPE, VK_LBUTTON, VK_RBUTTON].iter().any(|&vk| {
+        // SAFETY: GetAsyncKeyState는 키 코드(정수) 하나만 받고 포인터를 다루지 않으므로
+        // 어떤 값으로 호출해도 메모리 안전성 문제가 없다.
+        let state = unsafe { GetAsyncKeyState(vk as i32) };
+        state < 0 // 최상위 비트가 1(음수) = 지금 눌려 있음
+    })
+}
+
+/// `ms`만큼 기다리되, 그 사이 중단 입력이 들어오면 바로 true를 돌려준다
+fn wait_or_stop(ms: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_millis(ms);
+    loop {
+        if stop_requested() {
+            return true;
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            return false;
+        }
+        // 짧은 클릭도 놓치지 않도록 10ms마다 확인
+        thread::sleep((deadline - now).min(Duration::from_millis(10)));
+    }
+}
+
 fn grab(monitor: &Monitor, x: u32, y: u32, w: u32, h: u32) -> Result<RgbaImage> {
     monitor
         .capture_region(x, y, w, h)
@@ -46,11 +84,12 @@ fn grab(monitor: &Monitor, x: u32, y: u32, w: u32, h: u32) -> Result<RgbaImage> 
 
 /// 선택 영역을 스크롤하며 캡처해서 하나의 긴 이미지로 돌려준다.
 /// `progress`는 지금까지 이어 붙인 높이(px)를 받는다.
+/// Esc나 마우스 클릭이 들어오면 즉시 멈추고, 그때까지 찍은 부분을 돌려준다.
 pub fn run_capture(
     sel: Selection,
     opt: &CaptureOptions,
     progress: impl Fn(u32),
-) -> Result<RgbaImage> {
+) -> Result<CaptureOutcome> {
     let (x, y, width, height) = (sel.x, sel.y, sel.width, sel.height);
     println!("캡처 영역: {sel:?}, 설정: {opt:?}");
 
@@ -71,10 +110,20 @@ pub fn run_capture(
     let mut footer = None;
     let mut out: Vec<u8> = Vec::new();
     let row_bytes = (width * 4) as usize; // RGBA 이미지 한 행의 바이트 수
+    let mut stopped = false;
 
     loop {
+        if stop_requested() {
+            stopped = true;
+            break;
+        }
         enigo.scroll(opt.wheel_notches, Axis::Vertical)?; // 양수 = 아래로
-        thread::sleep(Duration::from_millis(opt.delay_ms)); // 스크롤 후 잠시 대기
+
+        // 스크롤 후 잠시 대기 (대기 중에도 중단 입력 확인)
+        if wait_or_stop(opt.delay_ms) {
+            stopped = true;
+            break;
+        }
 
         // 새 이미지 캡처
         let cur = grab(&monitor, local_x, local_y, width, height)?;
@@ -138,6 +187,11 @@ pub fn run_capture(
         None => out.extend_from_slice(prev.as_raw()),
     }
 
-    RgbaImage::from_raw(width, (out.len() / row_bytes) as u32, out)
-        .context("결과 이미지를 만들 수 없습니다")
+    if stopped {
+        println!("사용자가 중단했습니다");
+    }
+
+    let image = RgbaImage::from_raw(width, (out.len() / row_bytes) as u32, out)
+        .context("결과 이미지를 만들 수 없습니다")?;
+    Ok(CaptureOutcome { image, stopped })
 }

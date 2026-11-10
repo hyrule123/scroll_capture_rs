@@ -49,7 +49,7 @@ enum State {
     /// 백그라운드 스레드에서 캡처 중
     Capturing {
         /// 캡처 결과를 받을 채널
-        rx: Receiver<Result<RgbaImage>>,
+        rx: Receiver<Result<capture::CaptureOutcome>>,
         /// 지금까지 이어 붙인 높이 (스레드가 갱신)
         height: Arc<AtomicU32>,
     },
@@ -97,7 +97,8 @@ impl App {
         Self {
             state: State::Idle,
             options: CaptureOptions::default(),
-            status: "캡처할 프로그램을 띄워 두고 시작을 누르세요.".to_owned(),
+            status: "캡처할 프로그램을 띄워 두고 시작을 누르세요. 캡처 중 Esc나 마우스 클릭으로 중단합니다."
+                .to_owned(),
         }
     }
 
@@ -226,8 +227,13 @@ impl App {
         ctx.send_viewport_cmd(ViewportCommand::Focus);
 
         self.state = match received {
-            Ok(image) => {
-                self.status = format!("완료: {} x {} px", image.width(), image.height());
+            Ok(capture::CaptureOutcome { image, stopped }) => {
+                let how = if stopped {
+                    "중단됨 (여기까지 저장)"
+                } else {
+                    "완료"
+                };
+                self.status = format!("{how}: {} x {} px", image.width(), image.height());
                 State::Done(Preview { image, tiles: None })
             }
             Err(e) => {

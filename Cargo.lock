@@ -3317,6 +3317,7 @@ dependencies = [
  "eframe",
  "enigo",
  "rfd",
+ "windows-sys 0.61.2",
  "xcap",
 ]
 
